@@ -1,0 +1,85 @@
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+#include <MAX30100_PulseOximeter.h>
+
+#define SCREEN_WIDTH 128 // OLED display width, in pixels
+#define SCREEN_HEIGHT 32 // OLED display height, in pixels
+
+// Declaration for an SSD1306 display connected to I2C (SDA, SCL pins)
+#define OLED_RESET    -1 // Reset pin # (or -1 if sharing Arduino reset pin)
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+
+#define REPORTING_PERIOD_MS     1000
+
+MAX30100_PulseOximeter pox;
+
+uint32_t lastReportTime = 0;
+
+void onBeatDetected()
+{
+  Serial.println("Beat!");
+}
+
+void setup()
+{
+  Serial.begin(115200);
+  
+  // Initialize the OLED display
+  if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) // Address 0x3C for 128x32
+  {
+    Serial.println(F("SSD1306 allocation failed"));
+    for(;;);
+  }
+  
+  // Initialize the Pulse Oximeter sensor
+  if(!pox.begin())
+  {
+    Serial.println("Failed to initialize pulse oximeter!");
+    for(;;);
+  }
+  else
+  {
+    Serial.println("Pulse oximeter initialized");
+  }
+
+  pox.setOnBeatDetectedCallback(onBeatDetected);
+}
+
+void loop()
+{
+  pox.update();
+
+  if (millis() - lastReportTime > REPORTING_PERIOD_MS)
+  {
+    if (pox.available())
+    {
+      Serial.print("Heart rate: ");
+      Serial.print(pox.getHeartRate());
+      Serial.print(" bpm / SpO2: ");
+      Serial.println(pox.getSpO2());
+
+      display.clearDisplay();
+      display.setTextSize(1);
+      display.setTextColor(SSD1306_WHITE);
+      display.setCursor(0,0);
+      display.print("Heart rate: ");
+      display.print(pox.getHeartRate());
+      display.println(" bpm");
+      display.print("SpO2: ");
+      display.print(pox.getSpO2());
+      display.println("%");
+      display.display();
+    }
+    else if (pox.getError())
+    {
+      Serial.println("Error: something went wrong during the pulse oximeter read");
+    }
+    else
+    {
+      Serial.println("Waiting for valid data...");
+    }
+
+    lastReportTime = millis();
+  }
+}
